@@ -76,6 +76,9 @@ export interface RequestOptions {
    * The maximum number of times that the client will retry a request in case of a
    * temporary failure, like a network error or a 5XX error from the server.
    *
+   * A request whose body is a stream (a `ReadableStream`, an async iterable or an
+   * iterator) can be read only once, so it is never retried.
+   *
    * @default 2
    */
   maxRetries?: number;

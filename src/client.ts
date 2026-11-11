@@ -826,6 +826,9 @@ export interface ClientOptions {
    * The maximum number of times that the client will retry a request in case of a
    * temporary failure, like a network error or a 5XX error from the server.
    *
+   * A request whose body is a stream (a `ReadableStream`, an async iterable or an
+   * iterator) can be read only once, so it is never retried.
+   *
    * @default 2
    */
   maxRetries?: number | undefined;
@@ -1607,6 +1610,12 @@ export class BaseAnthropic {
     const options = await optionsInput;
     let maxRetries = validatePositiveInteger('maxRetries', options.maxRetries ?? this.maxRetries);
     if (this.isStreamBody(options.body)) {
+      const requestedRetries = options.maxRetries ?? this._options.maxRetries;
+      if (retriesRemaining == null && requestedRetries) {
+        loggerFor(this).warn(
+          `maxRetries (${requestedRetries}) is ignored for this request: its body is a stream, which can be read only once, so it will not be retried.`,
+        );
+      }
       maxRetries = 0;
     }
     if (retriesRemaining == null) {

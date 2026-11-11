@@ -671,6 +671,43 @@ describe('retries', () => {
     expect(count).toEqual(1);
   });
 
+  test.each([
+    ['a client maxRetries', { maxRetries: 3 }, {}, 3],
+    ['a per-request maxRetries', {}, { maxRetries: 2 }, 2],
+    ['the default maxRetries', {}, {}, null],
+    ['maxRetries 0 on the request', { maxRetries: 3 }, { maxRetries: 0 }, null],
+  ])(
+    'a stream body with %s warns only when an explicit retry count is ignored',
+    async (_, clientOptions, requestOptions, ignoredRetries) => {
+      const warn = vi.fn();
+      let count = 0;
+      const testFetch = async (): Promise<Response> => {
+        count++;
+        return new Response(JSON.stringify({ message: 'unavailable' }), {
+          status: 503,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      };
+      const client = new Anthropic({
+        apiKey: 'my-anthropic-api-key',
+        fetch: testFetch,
+        logger: { debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() },
+        ...clientOptions,
+      });
+
+      await expect(
+        client.post('/foo', { body: new Response('hello').body, ...requestOptions }),
+      ).rejects.toThrow(InternalServerError);
+      expect(count).toEqual(1);
+      if (ignoredRetries === null) {
+        expect(warn).not.toHaveBeenCalled();
+      } else {
+        expect(warn).toHaveBeenCalledTimes(1);
+        expect(warn.mock.calls[0]![0]).toContain(`maxRetries (${ignoredRetries}) is ignored`);
+      }
+    },
+  );
+
   test('retry on timeout', async () => {
     let count = 0;
     const testFetch = async (
